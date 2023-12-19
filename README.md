@@ -1,6 +1,6 @@
 # go-auto-wlan
 
-Systray application to automatically switch WLAN off when laptop lid gets closed
+MacOS menu application to automatically switch WLAN off when laptop lid gets closed
 and switch WLAN on again when laptop lid gets opened again.
 
 Menu icon shows whether WLAN is powered on or off.
