@@ -60,7 +60,6 @@ $(IMAGE_TO_GO):
 	go get github.com/cratonica/2goarray
 	go install github.com/cratonica/2goarray
 
-assets/%.go: $(IMAGE_TO_GO)
 assets/%.go:
 	$(call progress,Building $@,from     $<)
 	echo "//+build linux darwin" > $@
@@ -70,7 +69,7 @@ assets/autowlan-black.go: assets/autowlan-black.png
 
 assets/autowlan-black-disabled.go: assets/autowlan-black-disabled.png
 
-autowlan.%: assets/autowlan-black.go assets/autowlan-black-disabled.go
+autowlan.%: $(IMAGE_TO_GO) assets/autowlan-black.go assets/autowlan-black-disabled.go
 	$(call progress,Building $(BUILD_TYPE) of $@)
 	env GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=1 go build \
 		-gcflags=all="-N -l" \
@@ -115,7 +114,7 @@ $(DARWIN_AMD64_DMG): $(DARWIN_AMD64_APP_BUNDLE) $(DARWIN_AMD64_APP_BUNDLE).signe
 
 darwin_amd64_binary: GOOS=darwin
 darwin_amd64_binary: GOARCH=amd64
-darwin_amd64_binary: $(DARWIN_ARM64_BINARY)
+darwin_amd64_binary: $(DARWIN_ARM64_BINARY) $(IMAGE_TO_GO)
 
 darwin_amd64_bundle: GOOS=darwin
 darwin_amd64_bundle: GOARCH=amd64
