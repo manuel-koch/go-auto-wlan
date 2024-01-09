@@ -11,3 +11,7 @@ OUTPUT=icon.go
 echo "//+build linux darwin" > $OUTPUT
 $GOPATH/bin/2goarray <VAR_NAME> <PACKAGE> < $INPUT >> $OUTPUT
 ```
+
+## Alternative approach to get ClampShell state via I/O Kit directly
+
+[traversing the I/O registry on Mac OS X (iokit)](https://gist.github.com/JonnyJD/6126680)
