@@ -166,8 +166,9 @@ func getWlanNetwork(device string) (string, error) {
 		logger.Error(fmt.Sprintf("Failed to get network airport network: %v", err))
 		return "", err
 	} else {
-		networkRe := regexp.MustCompile("Current\\s+Wi-Fi\\s+Network:\\s+(?P<network>\\S+)")
-		lines := strings.Split(string(output), "\n")
+		networkRe := regexp.MustCompile("Current\\s+Wi-Fi\\s+Network:\\s+(?P<network>.+)\\s*")
+		outputStr := string(output)
+		lines := strings.Split(outputStr, "\n")
 		for _, line := range lines {
 			networkMatch := utils.MatchNamedExpression(networkRe, line)
 			if networkMatch != nil {
