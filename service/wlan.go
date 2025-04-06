@@ -161,10 +161,14 @@ func setWlanState(device string, state WlanState) error {
 }
 
 func getWlanNetwork(device string) (string, error) {
+	// Newer versions of MacOS (Sequoia) don't seem to return useful information
+	// from the "networksetup -getairportnetwork <DEVICE>" call.
+	// Even when connected to Wifi, it just reports "You are not associated with an AirPort network.".
+	// Using alternative command "ipconfig getsummary <DEVICE>" if the former doesn't work.
+
 	cmd := exec.Command("networksetup", "-getairportnetwork", device)
 	if output, err := cmd.Output(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to get network airport network: %v", err))
-		return "", err
 	} else {
 		networkRe := regexp.MustCompile("Current\\s+Wi-Fi\\s+Network:\\s+(?P<network>.+)\\s*")
 		outputStr := string(output)
@@ -175,6 +179,22 @@ func getWlanNetwork(device string) (string, error) {
 				return networkMatch["network"], nil
 			}
 		}
-		return "", nil
 	}
+
+	cmd = exec.Command("ipconfig", "getsummary", device)
+	if output, err := cmd.Output(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to get ipconfig summary: %v", err))
+	} else {
+		networkRe := regexp.MustCompile("^\\s*SSID\\s+:\\s+(?P<ssid>.+)\\s*")
+		outputStr := string(output)
+		lines := strings.Split(outputStr, "\n")
+		for _, line := range lines {
+			networkMatch := utils.MatchNamedExpression(networkRe, line)
+			if networkMatch != nil {
+				return networkMatch["ssid"], nil
+			}
+		}
+	}
+
+	return "", nil
 }
