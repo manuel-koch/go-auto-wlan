@@ -149,3 +149,7 @@ clean::
 	-rm -rf build/*
 	-rm -rf dist/*
 	-rm -f assets/*.go
+
+.PHONY: format
+format::
+	find . -name "*.go" -print -exec gofmt -w {} +
