@@ -25,7 +25,7 @@ import (
 
 const (
 	LidUpdateInterval  = 3 * time.Second
-	WlanUpdateInterval = 3 * time.Second
+	WlanUpdateInterval = 5 * time.Second
 )
 
 type LidStateChangedEvent struct {
