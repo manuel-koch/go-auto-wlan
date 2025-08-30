@@ -13,13 +13,15 @@
 // You should have received a copy of the GNU General Public License
 // along with go-auto-wlan. If not, see <http://www.gnu.org/licenses/>.
 //
-// Copyright 2023 Manuel Koch
+// Copyright 2023-2025 Manuel Koch
 package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/manuel-koch/go-auto-wlan/app"
@@ -33,16 +35,24 @@ var (
 	versionSha1 string
 	buildDate   string
 
-	logLevel string
-	logPath  string
+	logLevel     string
+	logPath      string
+	printVersion bool
 )
 
 func main() {
 	flag.StringVar(&logLevel, "log-level", "INFO", "Select the log level: DEBUG, INFO, WARN")
 	flag.StringVar(&logPath, "log-path", "", "Log to file at given path")
+	flag.BoolVar(&printVersion, "version", false, "Print version and exit")
 	flag.Parse()
 
 	logging.ConfigueLogging(false, logLevel, logPath)
+
+	if printVersion {
+		executableName := filepath.Base(os.Args[0])
+		fmt.Printf("%s : Version %s Commit %s Built %s\n", executableName, versionTag, versionSha1, buildDate)
+		return
+	}
 
 	app := app.NewApp(versionTag, versionSha1, buildDate)
 
