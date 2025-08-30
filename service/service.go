@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with go-auto-wlan. If not, see <http://www.gnu.org/licenses/>.
 //
-// Copyright 2023 Manuel Koch
+// Copyright 2023-2025 Manuel Koch
 package service
 
 import (
@@ -76,8 +76,8 @@ func NewService(ctx context.Context) *Service {
 		publishEvents:            make(chan interface{}),
 		evtSubscriptions:         make([]*EventSubscription, 0),
 
-		requestLidUpdate:  make(chan interface{}, 0),
-		requestWlanUpdate: make(chan interface{}, 0),
+		requestLidUpdate:  make(chan interface{}),
+		requestWlanUpdate: make(chan interface{}),
 	}
 
 	if wifiDevices, err := getWlanDevices(); err == nil {
@@ -125,7 +125,7 @@ func (s *Service) handleSubscriptions() {
 		case pendingUnsubscribe := <-s.pendingEvtUnsubscription:
 			for i, subscription := range s.evtSubscriptions {
 				if subscription == pendingUnsubscribe {
-					slices.Delete(s.evtSubscriptions, i, i)
+					_ = slices.Delete(s.evtSubscriptions, i, i)
 					close(subscription.updates)
 				}
 			}
