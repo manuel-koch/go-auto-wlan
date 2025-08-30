@@ -1,5 +1,5 @@
 NOW                     := $(shell date -u +'%Y-%m-%d_%TZ')
-HEAD_SHA1               := $(shell git rev-parse --short=8 HEAD)
+HEAD_SHA1               := $(shell git describe --long --dirty | cut -d"-" -f2-)
 HEAD_TAG                := $(shell git describe --tags | grep -e "^v" | sort | tail -1 | cut -b2-)
 ifndef HEAD_TAG
 HEAD_TAG := 0.0
