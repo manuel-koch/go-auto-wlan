@@ -104,7 +104,9 @@ autowlan.%: $(IMAGE_TO_GO) assets/autowlan-black.go assets/autowlan-black-disabl
 .PHONY: %.signed
 %.signed:
 	$(call progress,Signing $*)
-	security find-certificate -c "$(CODE_SIGN_CERT)" -p | openssl x509 -noout -text  -inform pem | grep -E "Validity|(Not (Before|After)\s*:)"
+	@echo "Validity of code signing certificate(s)"
+	@./show-certificates.py "$(CODE_SIGN_CERT)" | grep -E "Validity|(Not (Before|After)\s*:)"
+	@echo "Signing code..."
 	codesign --verbose=4 --force --deep --sign "$(CODE_SIGN_CERT)" $*
 	codesign --verbose=4 --display $*
 
