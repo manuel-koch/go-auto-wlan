@@ -13,10 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with go-auto-wlan. If not, see <http://www.gnu.org/licenses/>.
 //
-// Copyright 2023 Manuel Koch
+// Copyright 2023-2025 Manuel Koch
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -84,11 +85,11 @@ func getWlanDevices() ([]WlanDevice, error) {
 	} else {
 		// merge non-empty lines into one line
 		outputStr := string(outputBytes)
-		mergeLinesRe := regexp.MustCompile("(\\S+)\\n")
+		mergeLinesRe := regexp.MustCompile(`(\S+)\n`)
 		outputStr = mergeLinesRe.ReplaceAllString(outputStr, "$1 ")
 
-		wifiRe := regexp.MustCompile("Hardware Port:\\s+Wi-Fi")
-		deviceRe := regexp.MustCompile("Device:\\s+(?P<name>\\S+)")
+		wifiRe := regexp.MustCompile(`Hardware Port:\s+Wi-Fi`)
+		deviceRe := regexp.MustCompile(`Device:\s+(?P<name>\S+)`)
 
 		lines := strings.Split(outputStr, "\n")
 		for _, line := range lines {
@@ -160,38 +161,62 @@ func setWlanState(device string, state WlanState) error {
 	return nil
 }
 
+// ---------------------------------------------------------------------
+// The following struct are used to parse the output of command "system_profiler -json SPAirPortDataType"
+type CurrentNetworkInfo struct {
+	Name string `json:"_name"` // the SSID (may be an empty string)
+}
+
+// A single Wi‑Fi interface (en0, awdl0 …)
+type AirportInterface struct {
+	Name                      string             `json:"_name"`
+	CurrentNetworkInformation CurrentNetworkInfo `json:"spairport_current_network_information"`
+	Status                    string             `json:"spairport_status_information,omitempty"`
+	SupportedPhymodes         string             `json:"spairport_supported_phymodes,omitempty"`
+}
+
+// The container that holds all interfaces for a “SPAirPortDataType” entry.
+type SPAirPortData struct {
+	Interfaces []AirportInterface `json:"spairport_airport_interfaces"`
+}
+
+// The very root of the JSON you get from system_profiler.
+type SPAirPortDataType struct {
+	SPAirPortDataType []SPAirPortData `json:"SPAirPortDataType"`
+}
+
+// ----------------------------------------------------------------------
+
 func getWlanNetwork(device string) (string, error) {
 	// Newer versions of MacOS (Sequoia) don't seem to return useful information
 	// from the "networksetup -getairportnetwork <DEVICE>" call.
 	// Even when connected to Wifi, it just reports "You are not associated with an AirPort network.".
-	// Using alternative command "ipconfig getsummary <DEVICE>" if the former doesn't work.
+	//
+	// Using alternative command "ipconfig getsummary <DEVICE>" doesn't work either as
+	// newer versions of MacOS (Sequoia) may just return "<redacted>" as the connected wifi SSID.
+	//
+	// The only non-root way that seems to work is using command "system_profiler -json SPAirPortDataType".
 
-	cmd := exec.Command("networksetup", "-getairportnetwork", device)
+	cmd := exec.Command("system_profiler", "-json", "SPAirPortDataType")
 	if output, err := cmd.Output(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to get network airport network: %v", err))
+		logger.Error(fmt.Sprintf("Failed to get system_profiler SPAirPortDataType output: %v", err))
 	} else {
-		networkRe := regexp.MustCompile("Current\\s+Wi-Fi\\s+Network:\\s+(?P<network>.+)\\s*")
-		outputStr := string(output)
-		lines := strings.Split(outputStr, "\n")
-		for _, line := range lines {
-			networkMatch := utils.MatchNamedExpression(networkRe, line)
-			if networkMatch != nil {
-				return networkMatch["network"], nil
-			}
-		}
-	}
-
-	cmd = exec.Command("ipconfig", "getsummary", device)
-	if output, err := cmd.Output(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to get ipconfig summary: %v", err))
-	} else {
-		networkRe := regexp.MustCompile("^\\s*SSID\\s+:\\s+(?P<ssid>.+)\\s*")
-		outputStr := string(output)
-		lines := strings.Split(outputStr, "\n")
-		for _, line := range lines {
-			networkMatch := utils.MatchNamedExpression(networkRe, line)
-			if networkMatch != nil {
-				return networkMatch["ssid"], nil
+		var airportData SPAirPortDataType
+		if err := json.Unmarshal([]byte(output), &airportData); err != nil {
+			logger.Error(fmt.Sprintf("Failed parse JSON output of system_profiler SPAirPortDataType: %v", err))
+		} else {
+			for _, airportDataType := range airportData.SPAirPortDataType {
+				for _, iface := range airportDataType.Interfaces {
+					if iface.Name != device {
+						continue
+					}
+					if iface.Status != "spairport_status_connected" {
+						continue
+					}
+					if iface.CurrentNetworkInformation.Name != "" {
+						return iface.CurrentNetworkInformation.Name, nil
+					}
+				}
 			}
 		}
 	}
