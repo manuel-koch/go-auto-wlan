@@ -17,7 +17,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -161,30 +160,6 @@ func setWlanState(device string, state WlanState) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------
-// The following struct are used to parse the output of command "system_profiler -json SPAirPortDataType"
-type CurrentNetworkInfo struct {
-	Name string `json:"_name"` // the SSID (may be an empty string)
-}
-
-// A single Wi‑Fi interface (en0, awdl0 …)
-type AirportInterface struct {
-	Name                      string             `json:"_name"`
-	CurrentNetworkInformation CurrentNetworkInfo `json:"spairport_current_network_information"`
-	Status                    string             `json:"spairport_status_information,omitempty"`
-	SupportedPhymodes         string             `json:"spairport_supported_phymodes,omitempty"`
-}
-
-// The container that holds all interfaces for a “SPAirPortDataType” entry.
-type SPAirPortData struct {
-	Interfaces []AirportInterface `json:"spairport_airport_interfaces"`
-}
-
-// The very root of the JSON you get from system_profiler.
-type SPAirPortDataType struct {
-	SPAirPortDataType []SPAirPortData `json:"SPAirPortDataType"`
-}
-
 // ----------------------------------------------------------------------
 
 func getWlanNetwork(device string) (string, error) {
@@ -195,28 +170,22 @@ func getWlanNetwork(device string) (string, error) {
 	// Using alternative command "ipconfig getsummary <DEVICE>" doesn't work either as
 	// newer versions of MacOS (Sequoia) may just return "<redacted>" as the connected wifi SSID.
 	//
-	// The only non-root way that seems to work is using command "system_profiler -json SPAirPortDataType".
+	// Using alternative command "system_profiler -json SPAirPortDataType" doesn't work either as
+	// newer versions of MacOS (Tahoe) may just return "<redacted>" as the connected wifi SSID.
+	//
+	// The only non-root way that seems to work is using command "networksetup -listpreferredwirelessnetworks <DEVICE>",
+	// which returns a list of wifi SSIDs where the first entry appears to be the currently connected SSID.
 
-	cmd := exec.Command("system_profiler", "-json", "SPAirPortDataType")
+	cmd := exec.Command("networksetup", "-listpreferredwirelessnetworks", device)
 	if output, err := cmd.Output(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to get system_profiler SPAirPortDataType output: %v", err))
+		logger.Error(fmt.Sprintf("Failed to get networksetup listpreferredwirelessnetworks output: %v", err))
 	} else {
-		var airportData SPAirPortDataType
-		if err := json.Unmarshal([]byte(output), &airportData); err != nil {
-			logger.Error(fmt.Sprintf("Failed parse JSON output of system_profiler SPAirPortDataType: %v", err))
-		} else {
-			for _, airportDataType := range airportData.SPAirPortDataType {
-				for _, iface := range airportDataType.Interfaces {
-					if iface.Name != device {
-						continue
-					}
-					if iface.Status != "spairport_status_connected" {
-						continue
-					}
-					if iface.CurrentNetworkInformation.Name != "" {
-						return iface.CurrentNetworkInformation.Name, nil
-					}
-				}
+		nameRe := regexp.MustCompile(`\t+(?P<name>.+)`)
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			nameMatch := utils.MatchNamedExpression(nameRe, line)
+			if nameMatch != nil {
+				return strings.TrimSpace(nameMatch["name"]), nil
 			}
 		}
 	}
